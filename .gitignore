@@ -12,6 +12,8 @@ target/
 *.iml
 *.ipr
 
+src/main/resources/superjionai-21ae31e8b966.json
+
 ### Eclipse ###
 .apt_generated
 .classpath
