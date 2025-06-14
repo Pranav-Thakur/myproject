@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spreadsheet Brain</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .node { fill: #69b3a2; stroke: #fff; }
+        .link { stroke: #999; stroke-opacity: 0.6; }
+        #query-interface { margin: 20px; }
+        #graph-container { width: 100%; height: 500px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+<h1>Spreadsheet Brain - Knowledge Graph</h1>
+
+<div id="query-interface">
+    <input type="text" id="query-input" placeholder="Ask about your spreadsheet..."
+           style="width: 400px; padding: 10px;">
+    <button onclick="executeQuery()">Query</button>
+
+    <div id="query-results" style="margin-top: 20px;"></div>
+</div>
+
+<div id="graph-container"></div>
+
+<script>
+    // WebSocket connection for real-time updates
+    const ws = new WebSocket('ws://localhost:8080/ws/updates');
+
+    ws.onmessage = function(event) {
+        const update = JSON.parse(event.data);
+        updateVisualization(update);
+    };
+
+    // Query execution
+    function executeQuery() {
+        const query = document.getElementById('query-input').value;
+
+        fetch('/api/v1/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query })
+        })
+            .then(response => response.json())
+            .then(data => displayResults(data));
+    }
+
+    function displayResults(data) {
+        const resultsDiv = document.getElementById('query-results');
+        resultsDiv.innerHTML = `
+                <h3>Results:</h3>
+                <p>${data.explanation}</p>
+                <ul>
+                    ${data.entities.map(entity =>
+            `<li>${entity.id}: ${entity.value}</li>`
+        ).join('')}
+                </ul>
+            `;
+    }
+
+    // Load and display knowledge graph
+    function loadGraph() {
+        fetch('/api/v1/graph/visualize')
+            .then(response => response.json())
+            .then(data => renderGraph(data));
+    }
+
+    function renderGraph(data) {
+        // D3.js graph visualization code here
+        // This would create an interactive graph showing cells and relationships
+        const graphDiv = document.getElementById('graph-container');
+        // graphDiv.innerHTML =
+    }
+
+    // Load graph on page load
+    window.onload = loadGraph;
+</script>
+</body>
+</html>
