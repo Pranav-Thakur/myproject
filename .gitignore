@@ -12,7 +12,7 @@ target/
 *.iml
 *.ipr
 
-src/main/resources/superjionai-21ae31e8b966.json
+src/main/resources/superjionai-8ec534a70d21.json
 
 ### Eclipse ###
 .apt_generated

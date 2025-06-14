@@ -25,7 +25,7 @@ spring:
 google:
   sheets:
     application-name: SuperJoinAI
-    credentials-file-path: /Users/kumarpranav/IdeaProjects/SuperJoinAI/superjionai-21ae31e8b966.json
+    credentials-file-path: src/main/resources/superjionai-8ec534a70d21.json
 
 # Server Configuration
 server:

@@ -35,7 +35,7 @@ public class GoogleSheetsService {
     public Sheets initializeSheetsService() throws IOException, GeneralSecurityException {
         // Load credentials from service account key file (adjust path as needed)
         GoogleCredentials credentials = GoogleCredentials
-                .fromStream(new FileInputStream("src/main/resources/superjionai-21ae31e8b966.json"))
+                .fromStream(new FileInputStream("src/main/resources/superjionai-8ec534a70d21.json"))
                 .createScoped(List.of(SheetsScopes.SPREADSHEETS_READONLY));
 
         return new Sheets.Builder(
