@@ -8,6 +8,7 @@ import com.google.api.services.sheets.v4.SheetsScopes;
 import com.google.api.services.sheets.v4.model.*;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.superjoin.dto.CellInfo;
 import org.superjoin.dto.SheetData;
@@ -19,6 +20,7 @@ import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 public class GoogleSheetsService {
 
@@ -40,9 +42,7 @@ public class GoogleSheetsService {
 
         return new Sheets.Builder(
                 GoogleNetHttpTransport.newTrustedTransport(),
-                JSON_FACTORY,
-                new HttpCredentialsAdapter(credentials)
-        )
+                JSON_FACTORY, new HttpCredentialsAdapter(credentials))
                 .setApplicationName(APPLICATION_NAME)
                 .build();
     }
@@ -53,14 +53,13 @@ public class GoogleSheetsService {
                     .get(spreadsheetId)
                     .setIncludeGridData(true)
                     .execute();
-
-            return parseSpreadsheetData(spreadsheet);
+            return parseSpreadsheetData(spreadsheet, spreadsheetId);
         } catch (IOException e) {
             throw new RuntimeException("Failed to read spreadsheet", e);
         }
     }
 
-    private SpreadsheetData parseSpreadsheetData(Spreadsheet spreadsheet) {
+    private SpreadsheetData parseSpreadsheetData(Spreadsheet spreadsheet, String spreadsheetId) {
         SpreadsheetData data = new SpreadsheetData();
         data.setSheets(new ArrayList<>());
 
@@ -70,7 +69,7 @@ public class GoogleSheetsService {
 
             if (sheet.getData() != null) {
                 for (GridData gridData : sheet.getData()) {
-                    parseGridData(gridData, sheetData);
+                    parseGridData(gridData, sheetData, spreadsheetId);
                 }
             }
 
@@ -80,7 +79,7 @@ public class GoogleSheetsService {
         return data;
     }
 
-    private void parseGridData(GridData gridData, SheetData sheetData) {
+    private void parseGridData(GridData gridData, SheetData sheetData, String spreadsheetId) {
         List<RowData> rows = gridData.getRowData();
         if (rows == null) return;
 
@@ -90,42 +89,40 @@ public class GoogleSheetsService {
 
             for (int colIndex = 0; colIndex < row.getValues().size(); colIndex++) {
                 CellData cell = row.getValues().get(colIndex);
-                processCellData(cell, rowIndex, colIndex, sheetData);
+                processCellData(cell, rowIndex, colIndex, sheetData, spreadsheetId);
             }
         }
     }
 
-    private void processCellData(CellData cell, int row, int col, SheetData sheetData) {
+    private void processCellData(CellData cell, int row, int col, SheetData sheetData, String spreadsheetId) {
         CellInfo cellInfo = new CellInfo();
         cellInfo.setAddress(getCellAddress(row, col));
 
         if (cell.getUserEnteredValue() != null) {
             if (cell.getUserEnteredValue().getFormulaValue() != null) {
                 cellInfo.setFormula(cell.getUserEnteredValue().getFormulaValue());
-                //cellInfo.setValue(extractCellValueFromFormula(cell, sheetData));
+                cellInfo.setValue(extractCellValueFromFormula(cellInfo.getAddress(), sheetData, spreadsheetId));
             } else
-                cellInfo.setValue(extractCellValue(cell));
+                cellInfo.setValue(cell.getFormattedValue());
         }
 
         sheetData.getCells().add(cellInfo);
     }
 
-    private String extractCellValueFromFormula(CellData cell, SheetData sheetData) {
-        String formula = cell.getUserEnteredValue().getFormulaValue();
-        String range = formula.substring(formula.indexOf('(') + 1, formula.indexOf(')')); // A1:C1
-        String sheetRange = sheetData.getName() + "!" + range;
-        ValueRange response = null;
+    private String extractCellValueFromFormula(String cell, SheetData sheetData, String spreadsheetId) {
         try {
-            response = sheetsService.spreadsheets().values()
-                    .get("", sheetRange)
+            String sheetRange = sheetData.getName() + "!" + cell;
+            ValueRange response = sheetsService.spreadsheets().values()
+                    .get(spreadsheetId, sheetRange)
                     .setValueRenderOption("UNFORMATTED_VALUE") // or "FORMATTED_VALUE"
                     .execute();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            List<List<Object>> values = response.getValues();
+            return values.get(0).get(0).toString();
+        } catch (Exception e) {
+            log.error(e.getMessage());
         }
 
-        List<List<Object>> values = response.getValues();
-        return values.get(0).get(0).toString();
+        return null;
     }
 
     public String getCellAddress(int row, int col) {

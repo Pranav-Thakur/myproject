@@ -37,7 +37,7 @@ public class NLPService {
         parsedQuery.setIntent(intent);
 
         // Extract entities and filters
-        Map<String, Object> filters = extractFilters(document);
+        Map<String, Filter> filters = extractFilters(document);
         parsedQuery.setFilters(filters);
 
         // Extract semantic concepts
@@ -71,7 +71,8 @@ public class NLPService {
                 "revenue", List.of("revenue", "sales", "income", "earnings"),
                 "cost", List.of("cost", "expense", "expenditure", "spending"),
                 "profit", List.of("profit", "margin", "earnings", "net income"),
-                "marketing", List.of("marketing", "advertising", "promotion", "campaign")
+                "marketing", List.of("marketing", "advertising", "promotion", "campaign"),
+                "marks", List.of("marks", "number", "score")
         );
 
         String text = document.text().toLowerCase();
@@ -88,8 +89,8 @@ public class NLPService {
         return concepts;
     }
 
-    public Map<String, Object> extractFilters(CoreDocument document) {
-        Map<String, Object> filters = new HashMap<>();
+    public Map<String, Filter> extractFilters(CoreDocument document) {
+        Map<String, Filter> filters = new HashMap<>();
         List<CoreLabel> tokens = document.tokens();
 
         for (int i = 0; i < tokens.size() - 2; i++) {

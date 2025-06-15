@@ -17,7 +17,7 @@ import java.util.Date;
 @NoArgsConstructor
 @Entity
 @Table(name = "relationships")
-public class Relationship {
+public class RelationshipEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private String id;

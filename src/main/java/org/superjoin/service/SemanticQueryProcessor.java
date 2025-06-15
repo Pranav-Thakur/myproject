@@ -1,21 +1,21 @@
 package org.superjoin.service;
 
-import org.neo4j.driver.Driver;
-import org.neo4j.driver.Record;
-import org.neo4j.driver.Result;
-import org.neo4j.driver.Session;
+import org.neo4j.driver.*;
 import org.neo4j.driver.types.Node;
+import org.neo4j.driver.types.Path;
+import org.neo4j.driver.types.Relationship;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.superjoin.dto.ParsedQuery;
+import org.superjoin.entity.RelationshipEntity;
 import org.superjoin.entity.SpreadsheetEntity;
+import org.superjoin.querymodel.AnalyseQueryResult;
+import org.superjoin.querymodel.ImpactAnalysisResult;
 import org.superjoin.querymodel.QueryResult;
 import org.superjoin.querymodel.SemanticQuery;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class SemanticQueryProcessor {
@@ -29,14 +29,33 @@ public class SemanticQueryProcessor {
     @Autowired
     private Driver neo4jDriver;
 
-    public QueryResult visualiseGraph() {
+    public AnalyseQueryResult visualiseGraph() {
         try (Session session = neo4jDriver.session()) {
             String cypher = "MATCH (n)-[r]->(m) " +
                     "RETURN n, r, m " +
                     "LIMIT 100";
 
             Result result = session.run(cypher);
-            return buildQueryResult(result);
+            return buildAnalyseQueryResult(result);
+        }
+    }
+
+    public ImpactAnalysisResult processImpactQuery(SemanticQuery query) {
+        // Parse natural language query
+        ParsedQuery parsedQuery = nlpService.parseQuery(query.getQuery());
+        parsedQuery.setParameters(query.getParameters());
+
+        // Convert to Cypher query
+        String cypherQuery = buildCypherQuery(parsedQuery);
+        try (Session session = neo4jDriver.session()) {
+            Result result = session.run(cypherQuery, parsedQuery.getParameters());
+            if (!result.hasNext()) {
+                ImpactAnalysisResult analysisResult = new ImpactAnalysisResult();
+                analysisResult.setExplanation("No impact on other cell.");
+                return analysisResult;
+            }
+
+            return buildImpactAnalysisResult(result.single());
         }
     }
 
@@ -72,11 +91,18 @@ public class SemanticQueryProcessor {
         List<String> conditions = new ArrayList<>();
 
         if (parsedQuery.hasSemanticFilter()) {
-            conditions.add("c.semanticLabel CONTAINS $semanticLabel");
+            //conditions.add("c.semanticLabel CONTAINS $semanticLabel");
+            parsedQuery.getFilters().values().forEach(filter -> {
+                if (filter.getField().equals("value")) {
+                    conditions.add("c.value IS NOT NULL AND NOT c.value =~ '.*[a-zA-Z]+'");
+                    conditions.add("toFloat(c." + filter.getField() + ") " + filter.getOperator() + " " + filter.getValue());
+                } else
+                    conditions.add("c." + filter.getField() + " " + filter.getOperator() + " " + filter.getValue());
+            });
         }
 
         if (parsedQuery.hasValueFilter()) {
-            conditions.add("c.value = $value");
+            conditions.add("toFloat(c.value) = $value");
         }
 
         if (!conditions.isEmpty()) {
@@ -89,10 +115,10 @@ public class SemanticQueryProcessor {
     }
 
     private String buildImpactAnalysisQuery(ParsedQuery parsedQuery) {
-        return "MATCH (source:Cell {id: $cellId})\n" +
-                "MATCH (source)<-[:DEPENDS_ON*1..5]-(affected)\n" +
-                "RETURN source, affected,\n" +
-                "       [path in (source)<-[:DEPENDS_ON*1..5]-(affected) | path] as paths";
+        return "MATCH (c:Cell {id: $cellId})\n" +
+                "WITH c\n" +
+                "MATCH path = (c)<-[:DEPENDS_ON*1..5]-(affected)\n" +
+                "RETURN c, collect(path) as paths";
     }
 
     private QueryResult executeQuery(String cypherQuery, ParsedQuery parsedQuery) {
@@ -104,7 +130,7 @@ public class SemanticQueryProcessor {
     }
     public String buildDependencyAnalysisQuery(ParsedQuery parsedQuery) {
         // Assume the main concept or cell is in filters with key "cellId" or "concept"
-        String cellId = (String) parsedQuery.getFilters().get("cellId");
+        String cellId = (String) parsedQuery.getParameters().get("cellId");
         if (cellId == null) {
             // Fallback: try semantic concept if specific cellId not found
             List<String> concepts = parsedQuery.getConcepts();
@@ -115,6 +141,7 @@ public class SemanticQueryProcessor {
                         "MATCH (c)<-[:DEPENDS_ON*1..5]-(dependent:Cell) " +
                         "RETURN c.id AS source, collect(DISTINCT dependent.id) AS dependents";
             }
+
             // Else generic dependency trace
             return "MATCH (c:Cell)<-[:DEPENDS_ON*1..5]-(dependent) " +
                     "RETURN c.id AS source, collect(dependent.id) AS dependents " +
@@ -122,9 +149,34 @@ public class SemanticQueryProcessor {
         }
 
         // If we have a specific cell
-        return "MATCH (source:Cell {id: $cellId}) " +
-                "MATCH (source)<-[:DEPENDS_ON*1..5]-(affected) " +
-                "RETURN source.id AS source, collect(affected.id) AS affectedCells";
+        return "MATCH (c:Cell {id: $cellId}) " +
+                "MATCH (c)<-[:DEPENDS_ON*1..5]-(dependent) " +
+                "RETURN c.id AS source, collect(dependent.id) AS dependents";
+    }
+
+    private ImpactAnalysisResult buildImpactAnalysisResult(Record record) {
+        ImpactAnalysisResult analysisResult = new ImpactAnalysisResult();
+        analysisResult.setPaths(new ArrayList<>());
+        analysisResult.setSource(mapRecordToEntity(record.get("c").asNode()));
+
+        List<Path> pathList = record.get("paths").asList(Value::asPath);
+        for (Path path : pathList) {
+            QueryResult result = new QueryResult();
+            result.setRelationships(new ArrayList<>());
+            result.setEntities(new ArrayList<>());
+
+            for (Node n : path.nodes()) {
+                result.getEntities().add(mapRecordToEntity(n));
+            }
+
+            for (Relationship r : path.relationships()) {
+                result.getRelationships().add(mapRecordToEntity(r));
+            }
+
+            analysisResult.getPaths().add(result);
+        }
+
+        return analysisResult;
     }
 
     public QueryResult buildQueryResult(Result result) {
@@ -132,7 +184,7 @@ public class SemanticQueryProcessor {
         List<SpreadsheetEntity> entities = new ArrayList<>();
 
         while (result.hasNext()) {
-            SpreadsheetEntity entity = mapRecordToEntity(result.next());
+            SpreadsheetEntity entity = mapRecordToEntity(result.next().get("c").asNode());
             if (entity != null)
                 entities.add(entity);
         }
@@ -143,20 +195,53 @@ public class SemanticQueryProcessor {
         return queryResult;
     }
 
-    private SpreadsheetEntity mapRecordToEntity(Record node) {
-        if (node.get("c") == null) return null;
-        Node record = node.get("c").asNode();
+    private SpreadsheetEntity mapRecordToEntity(Node record) {
         if (record == null) return null;
-
         SpreadsheetEntity entity = new SpreadsheetEntity();
         entity.setId(record.get("id").asString());
-        //entity.setEntityId(record.get("<id>").asLong());
-
+        entity.setEntityId(record.id());
         entity.setValue(record.get("value").asString(null));
         entity.setDataType(record.get("dataType").asString(null));
         entity.setFormula(record.get("formula").asString(null));
-        entity.setFormulaType(record.get("formulaType").asString());
+        entity.setFormulaType(record.get("formulaType").asString(null));
         entity.setSemanticLabel(record.get("semanticLabel").asString(null));
+        entity.setSheet(record.get("sheet").asString(null));
+        entity.setEntityType(record.labels().iterator().next());
         return entity;
+    }
+
+    private RelationshipEntity mapRecordToEntity(Relationship record) {
+        RelationshipEntity entity = new RelationshipEntity();
+        entity.setId(String.valueOf(record.id()));
+        entity.setSourceEntityId(String.valueOf(record.startNodeId()));
+        entity.setTargetEntityId(String.valueOf(record.endNodeId()));
+        entity.setRelationshipType(record.type());
+        entity.setStrength((Double) record.asMap().get("weight"));
+        return entity;
+    }
+
+    private AnalyseQueryResult buildAnalyseQueryResult(Result result) {
+        AnalyseQueryResult analyseQueryResult = new AnalyseQueryResult();
+        analyseQueryResult.setPaths(new ArrayList<>());
+
+        while (result.hasNext()) {
+            Record record = result.next();
+            Node n = record.get("n").asNode();
+
+            QueryResult queryResult = new QueryResult();
+            queryResult.setEntities(new ArrayList<>());
+            queryResult.setRelationships(new ArrayList<>());
+
+            queryResult.getEntities().add(mapRecordToEntity(n));
+            Node m = record.get("m").asNode();
+            queryResult.getEntities().add(mapRecordToEntity(m));
+
+            Relationship r = record.get("r").asRelationship();
+            queryResult.getRelationships().add(mapRecordToEntity(r));
+
+            analyseQueryResult.getPaths().add(queryResult);
+        }
+
+        return analyseQueryResult;
     }
 }

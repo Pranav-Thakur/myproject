@@ -9,7 +9,7 @@ import java.util.Map;
 @Data
 public class ParsedQuery {
     private QueryIntent intent;
-    private Map<String, Object> filters;
+    private Map<String, Filter> filters;
     private List<String> concepts;
     private Map<String, Object> parameters;
 

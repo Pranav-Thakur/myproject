@@ -62,14 +62,21 @@
     function loadGraph() {
         fetch('/api/v1/graph/visualize')
             .then(response => response.json())
-            .then(data => renderGraph(data));
+            .then(data => renderGraph(data))
+            .catch(error => {
+                console.error('Error fetching graph data:', error);
+                document.getElementById('graph-container').textContent = 'Failed to load data.';
+            });
     }
 
     function renderGraph(data) {
         // D3.js graph visualization code here
         // This would create an interactive graph showing cells and relationships
         const graphDiv = document.getElementById('graph-container');
-        // graphDiv.innerHTML =
+        const jsonWithoutNulls = JSON.stringify(data, (key, value) => {
+            return value === null ? undefined : value;
+        }, 2);
+        graphDiv.innerHTML = `<pre>${jsonWithoutNulls}</pre>`;
     }
 
     // Load graph on page load
