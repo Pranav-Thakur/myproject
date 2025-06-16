@@ -99,11 +99,18 @@ public class NLPService {
             String nextNext = tokens.get(i + 2).word();
 
             if (isComparisonOperator(next)) {
+                if (isComparisonOperator(nextNext)) {
+                    next += nextNext;
+                    if (i+3 >= tokens.size()) return filters;
+                    nextNext = tokens.get(i + 3).word();
+                    i++;
+                }
                 Filter filter = new Filter();
                 filter.setField(word);
                 filter.setOperator(next);
                 filter.setValue(nextNext);
                 filters.put(word, filter);
+                i++;
             }
         }
 

@@ -93,11 +93,19 @@ public class SemanticQueryProcessor {
         if (parsedQuery.hasSemanticFilter()) {
             //conditions.add("c.semanticLabel CONTAINS $semanticLabel");
             parsedQuery.getFilters().values().forEach(filter -> {
-                if (filter.getField().equals("value")) {
+                if ("value".equals(filter.getField())) {
                     conditions.add("c.value IS NOT NULL AND NOT c.value =~ '.*[a-zA-Z]+'");
                     conditions.add("toFloat(c." + filter.getField() + ") " + filter.getOperator() + " " + filter.getValue());
-                } else
-                    conditions.add("c." + filter.getField() + " " + filter.getOperator() + " " + filter.getValue());
+                } else {
+                    if ("*".equals(filter.getValue()))
+                        conditions.add("c." + filter.getField() + " IS NOT NULL");
+                    else if (filter.getValue().endsWith("*")) {
+                        String prefix = filter.getValue().substring(0, filter.getValue().length() - 1);
+                        conditions.add("c." + filter.getField() + " STARTS WITH " + " \"" + prefix + "\"");
+                    }
+                    else
+                        conditions.add("c." + filter.getField() + " " + filter.getOperator() + " \"" + filter.getValue() + "\"");
+                }
             });
         }
 

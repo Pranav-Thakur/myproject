@@ -9,6 +9,7 @@ import com.google.api.services.sheets.v4.model.*;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.superjoin.dto.CellInfo;
 import org.superjoin.dto.SheetData;
@@ -29,15 +30,19 @@ public class GoogleSheetsService {
     private static final String APPLICATION_NAME = "SuperJoinAI";
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
 
+    //@Value("${google.sheets.credentials}")
+    private String credentialsPath = "src/main/resources/superjionai-8ec534a70d21.json";
+
     public GoogleSheetsService() throws GeneralSecurityException, IOException {
         // Initialize Google Sheets API client
+        System.out.println("Credentials Path: " + credentialsPath);
         this.sheetsService = initializeSheetsService();
     }
 
     public Sheets initializeSheetsService() throws IOException, GeneralSecurityException {
         // Load credentials from service account key file (adjust path as needed)
         GoogleCredentials credentials = GoogleCredentials
-                .fromStream(new FileInputStream("src/main/resources/superjionai-8ec534a70d21.json"))
+                .fromStream(new FileInputStream(credentialsPath))
                 .createScoped(List.of(SheetsScopes.SPREADSHEETS_READONLY));
 
         return new Sheets.Builder(
