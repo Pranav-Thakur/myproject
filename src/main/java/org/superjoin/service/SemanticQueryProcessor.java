@@ -75,7 +75,7 @@ public class SemanticQueryProcessor {
             System.out.println(str);
             queryResult = executeQuery(str, parsedQuery);
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error("Gemini query failed : " + e.getMessage());
         }
 
         if (queryResult == null || queryResult.getEntities() == null || queryResult.getEntities().isEmpty()) {
@@ -108,19 +108,14 @@ public class SemanticQueryProcessor {
         if (parsedQuery.hasSemanticFilter()) {
             //conditions.add("c.semanticLabel CONTAINS $semanticLabel");
             parsedQuery.getFilters().values().forEach(filter -> {
-                if ("value".equals(filter.getField())) {
-                    conditions.add("c.value IS NOT NULL AND NOT c.value =~ '.*[a-zA-Z]+'");
-                    conditions.add("toFloat(c." + filter.getField() + ") " + filter.getOperator() + " " + filter.getValue());
-                } else {
-                    if ("*".equals(filter.getValue()))
-                        conditions.add("c." + filter.getField() + " IS NOT NULL");
-                    else if (filter.getValue().endsWith("*")) {
-                        String prefix = filter.getValue().substring(0, filter.getValue().length() - 1);
-                        conditions.add("c." + filter.getField() + " STARTS WITH " + " \"" + prefix + "\"");
-                    }
-                    else
-                        conditions.add("c." + filter.getField() + " " + filter.getOperator() + " \"" + filter.getValue() + "\"");
+                if ("*".equals(filter.getValue()))
+                    conditions.add("c." + filter.getField() + " IS NOT NULL");
+                else if (filter.getValue().endsWith("*")) {
+                    String prefix = filter.getValue().substring(0, filter.getValue().length() - 1);
+                    conditions.add("c." + filter.getField() + " STARTS WITH " + " \"" + prefix + "\"");
                 }
+                else
+                    conditions.add("c." + filter.getField() + " " + filter.getOperator() + " \"" + filter.getValue() + "\"");
             });
         }
 
@@ -207,7 +202,8 @@ public class SemanticQueryProcessor {
         List<SpreadsheetEntity> entities = new ArrayList<>();
 
         while (result.hasNext()) {
-            Value value = result.next().get("n").isNull() ? result.next().get("c") : result.next().get("n");
+            Record record = result.next();
+            Value value = record.get("n").isNull() ? record.get("c") : record.get("n");
             SpreadsheetEntity entity = mapRecordToEntity(value.asNode());
             if (entity != null)
                 entities.add(entity);
