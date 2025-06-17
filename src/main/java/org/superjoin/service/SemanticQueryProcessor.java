@@ -1,5 +1,6 @@
 package org.superjoin.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.neo4j.driver.*;
 import org.neo4j.driver.types.Node;
 import org.neo4j.driver.types.Path;
@@ -17,6 +18,7 @@ import org.superjoin.querymodel.SemanticQuery;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 public class SemanticQueryProcessor {
 
@@ -28,6 +30,9 @@ public class SemanticQueryProcessor {
 
     @Autowired
     private Driver neo4jDriver;
+
+    @Autowired
+    private GeminiService geminiService;
 
     public AnalyseQueryResult visualiseGraph() {
         try (Session session = neo4jDriver.session()) {
@@ -63,12 +68,22 @@ public class SemanticQueryProcessor {
         // Parse natural language query
         ParsedQuery parsedQuery = nlpService.parseQuery(query.getQuery());
         parsedQuery.setParameters(query.getParameters());
+        QueryResult queryResult = null;
 
-        // Convert to Cypher query
-        String cypherQuery = buildCypherQuery(parsedQuery);
+        try {
+            String str = geminiService.convertToCypher(query.getQuery());
+            System.out.println(str);
+            queryResult = executeQuery(str, parsedQuery);
+        } catch (Exception e) {
+            log.error(e.getMessage());
+        }
 
-        // Execute query
-        return executeQuery(cypherQuery, parsedQuery);
+        if (queryResult == null || queryResult.getEntities() == null || queryResult.getEntities().isEmpty()) {
+            String cypherQuery = buildCypherQuery(parsedQuery);
+            queryResult = executeQuery(cypherQuery, parsedQuery);
+        }
+
+        return queryResult;
     }
 
     private String buildCypherQuery(ParsedQuery parsedQuery) {
@@ -192,7 +207,8 @@ public class SemanticQueryProcessor {
         List<SpreadsheetEntity> entities = new ArrayList<>();
 
         while (result.hasNext()) {
-            SpreadsheetEntity entity = mapRecordToEntity(result.next().get("c").asNode());
+            Value value = result.next().get("n").isNull() ? result.next().get("c") : result.next().get("n");
+            SpreadsheetEntity entity = mapRecordToEntity(value.asNode());
             if (entity != null)
                 entities.add(entity);
         }
@@ -251,5 +267,10 @@ public class SemanticQueryProcessor {
         }
 
         return analyseQueryResult;
+    }
+
+    public String getSuggestions(String graphSummary) {
+        System.out.println(graphSummary);
+        return geminiService.getSuggestions(graphSummary);
     }
 }

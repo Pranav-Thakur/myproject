@@ -31,6 +31,7 @@ public class SpreadsheetBrainController {
 
     @Autowired
     private GoogleSheetsService sheetsService;
+
     @Autowired
     private SemanticQueryProcessor semanticQueryProcessor;
 
@@ -91,5 +92,12 @@ public class SpreadsheetBrainController {
             result.setExplanation("Query execution failed: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
         }
+    }
+
+    @GetMapping("/ai/suggest")
+    public ResponseEntity<String> suggestImprovements() {
+        String graphSummary = graphService.getGraphSummary();
+        String suggestions = queryProcessor.getSuggestions(graphSummary);
+        return ResponseEntity.ok(suggestions);
     }
 }

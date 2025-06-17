@@ -12,7 +12,8 @@ target/
 *.iml
 *.ipr
 
-src/main/resources/superjionai-8ec534a70d21.json
+src/main/resources/superjionai-googlesheet-api.json
+src/main/resources/gemini.key
 
 ### Eclipse ###
 .apt_generated

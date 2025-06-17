@@ -13,6 +13,14 @@
 <body>
 <h1>Spreadsheet Brain - Knowledge Graph</h1>
 
+<div id="read-spreadsheet">
+    <input type="text" id="read-input" placeholder="Give spreadsheet ID to read..."
+           style="width: 400px; padding: 10px;">
+    <button onclick="executeAnalyse()">Analyse</button>
+
+    <div id="read-results" style="margin-top: 20px;"></div>
+</div>
+
 <div id="query-interface">
     <input type="text" id="query-input" placeholder="Ask about your spreadsheet..."
            style="width: 400px; padding: 10px;">
@@ -32,10 +40,22 @@
         updateVisualization(update);
     };
 
+    // read analyse
+    function executeAnalyse() {
+        const sheetId = document.getElementById('read-input').value;
+        document.getElementById('read-results').innerHTML = "processing ..."
+        fetch('/api/v1/spreadsheets/' + sheetId + '/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(response => response.json())
+            .then(data => document.getElementById('read-results').innerHTML = JSON.stringify(data, null, 2));
+    }
+
     // Query execution
     function executeQuery() {
         const query = document.getElementById('query-input').value;
-
+        document.getElementById('query-results').innerHTML = "processing ..."
         fetch('/api/v1/query', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

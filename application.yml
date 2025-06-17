@@ -28,7 +28,7 @@ spring:
 google:
   sheets:
     application-name: SuperJoinAI
-    credentials: src/main/resources/superjionai-8ec534a70d21.json
+    credentials: src/main/resources/superjionai-googlesheet-api.json
 
 # Server Configuration
 server:

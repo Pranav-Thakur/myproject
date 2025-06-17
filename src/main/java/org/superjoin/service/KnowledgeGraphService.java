@@ -180,4 +180,38 @@ public class KnowledgeGraphService {
             }
         }
     }
+
+    public String getGraphSummary() {
+        try (Session session = neo4jDriver.session()) {
+
+            // Count total nodes
+            long nodeCount = session.readTransaction(tx ->
+                    tx.run("MATCH (n) RETURN count(n) AS count")
+                            .single()
+                            .get("count").asLong()
+            );
+
+            // Count total relationships
+            long relCount = session.readTransaction(tx ->
+                    tx.run("MATCH ()-[r]->() RETURN count(r) AS count")
+                            .single()
+                            .get("count").asLong()
+            );
+
+            // Get all labels
+            List<String> labels = session.readTransaction(tx ->
+                    tx.run("CALL db.labels()").list(record ->
+                            record.get("label").asString())
+            );
+
+            // Get all relationship types
+            List<String> relTypes = session.readTransaction(tx ->
+                    tx.run("CALL db.relationshipTypes()").list(record ->
+                            record.get("relationshipType").asString())
+            );
+
+            return String.format("Graph Summary:\n- Nodes: %d\n- Relationships: %d\n- Labels: %s\n- Relationship Types: %s",
+                    nodeCount, relCount, labels.toString(), relTypes.toString());
+        }
+    }
 }

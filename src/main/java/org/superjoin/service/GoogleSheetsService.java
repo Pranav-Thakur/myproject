@@ -31,7 +31,7 @@ public class GoogleSheetsService {
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
 
     //@Value("${google.sheets.credentials}")
-    private String credentialsPath = "src/main/resources/superjionai-8ec534a70d21.json";
+    private String credentialsPath = "src/main/resources/superjionai-googlesheet-api.json";
 
     public GoogleSheetsService() throws GeneralSecurityException, IOException {
         // Initialize Google Sheets API client
